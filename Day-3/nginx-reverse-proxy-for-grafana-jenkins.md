@@ -9,7 +9,28 @@ You will also need SSL certificates. If you are just testing locally, you can us
 
 ---
 
-### 1. Nginx Configuration
+### 1. Service Setup
+
+Install and run Grafana and Jenkins locally or via Docker before configuring Nginx. For a simple Docker-based setup:
+
+```bash
+# Run Grafana
+docker run -d --name grafana \
+  -p 3000:3000 \
+  grafana/grafana:latest
+
+# Run Jenkins
+docker run -d --name jenkins \
+  -p 8080:8080 \
+  -p 50000:50000 \
+  jenkins/jenkins:lts
+```
+
+If you prefer local packages, install each service and confirm that both are accessible on the ports above.
+
+---
+
+### 2. Nginx Configuration
 
 Create a new configuration file in your Nginx directory (e.g., `/etc/nginx/conf.d/dev-tools.conf` or `/etc/nginx/sites-available/dev-tools`).
 
@@ -26,6 +47,10 @@ server {
     ssl_certificate_key /etc/ssl/private/grafana.local.key;
 
     location / {
+        # Basic Authentication for Grafana access
+        auth_basic "Restricted Grafana Access";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+
         proxy_pass http://127.0.0.1:3000;
         
         # Standard Reverse Proxy Headers
@@ -77,15 +102,14 @@ server {
 
 ---
 
-### 2. Setup Basic Authentication for Jenkins
+### 3. Setup Basic Authentication for Grafana and Jenkins
 
-To make the `auth_basic_user_file` work, you need to create a `.htpasswd` file containing the allowed username and encrypted password. You will need the `apache2-utils` (Ubuntu/Debian) or `httpd-tools` (CentOS/RHEL) package.
+To make the `auth_basic_user_file` work for both services, create a shared `.htpasswd` file containing the allowed username and encrypted password. You will need the `apache2-utils` (Ubuntu/Debian) or `httpd-tools` (CentOS/RHEL) package.
 
 Run the following command in your terminal to create the file and add a user (e.g., `admin`):
 
 ```bash
 sudo htpasswd -c /etc/nginx/.htpasswd admin
-
 ```
 
 *You will be prompted to type and confirm a password.*
@@ -94,12 +118,13 @@ If you want to add more users later, omit the `-c` flag (which creates a new fil
 
 ```bash
 sudo htpasswd /etc/nginx/.htpasswd another_user
-
 ```
+
+Both Grafana and Jenkins will now require Basic Authentication before traffic is proxied to the backend services.
 
 ---
 
-### 3. Configure Local DNS Resolution
+### 4. Configure Local DNS Resolution
 
 Since `.local` domains are not real public internet domains, your computer needs to know to route them to your local Nginx server.
 
@@ -114,7 +139,7 @@ Edit your `/etc/hosts` file (Linux/macOS) or `C:\Windows\System32\drivers\etc\ho
 
 ---
 
-### 4. Test and Reload Nginx
+### 5. Test and Reload Nginx
 
 Finally, verify that your Nginx configuration has no syntax errors and reload the service:
 
